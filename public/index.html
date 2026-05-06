@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>PickerIQ</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f0f4f0; --card: #fff; --border: #c8d5c8; --muted: #6b7d6b;
+  --ink: #2c3c2c; --sage: #7a9e7e; --sage-dark: #4a7550; --sage-deeper: #2d5233;
+  --sage-light: #e8f0e8; --sage-mid: #b8cfb8; --amber: #c17f24;
+  --amber-bg: #fdf3e3; --amber-text: #7a4f0d; --green-bg: #e4f0e4;
+  --green-text: #2d6b35; --red-bg: #fceaea; --red-border: #e8a8a8; --red-text: #8b2a2a;
+  --radius: 14px;
+}
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; }
+.app { max-width: 520px; margin: 0 auto; padding: 0 0 5rem; }
+
+/* Top bar */
+.top-bar { background: var(--sage-deeper); padding: 0.875rem 1rem; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+.logo-row { display: flex; align-items: center; gap: 8px; }
+.logo-text { font-size: 0px; }
+.menu-btn { background: none; border: none; cursor: pointer; padding: 4px; display: flex; flex-direction: column; gap: 5px; }
+.menu-btn span { display: block; width: 22px; height: 2px; background: #fff; border-radius: 2px; }
+
+/* Menu */
+.menu-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; }
+.menu-overlay.open { display: block; }
+.menu-panel { position: fixed; top: 0; right: -320px; width: 300px; height: 100vh; background: var(--card); z-index: 201; transition: right 0.3s ease; overflow-y: auto; padding-bottom: 2rem; }
+.menu-panel.open { right: 0; }
+.menu-header { background: var(--sage-deeper); padding: 1rem; display: flex; align-items: center; justify-content: space-between; }
+.menu-title { color: #fff; font-size: 16px; font-weight: 600; }
+.menu-close { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; }
+.menu-section { padding: 1rem; border-bottom: 1px solid var(--border); }
+.menu-section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 10px; }
+.filter-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+.filter-opt { font-size: 12px; padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); cursor: pointer; font-family: 'DM Sans', sans-serif; }
+.filter-opt.active { background: var(--sage-deeper); color: #fff; border-color: var(--sage-deeper); }
+.history-list { display: flex; flex-direction: column; gap: 8px; }
+.history-item { background: var(--sage-light); border-radius: 8px; padding: 10px 12px; cursor: pointer; border: 1px solid var(--border); }
+.history-item:hover { border-color: var(--sage); }
+.history-cat { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 2px; }
+.history-top { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+.history-meta { font-size: 11px; color: var(--muted); }
+.history-empty { font-size: 13px; color: var(--muted); font-style: italic; }
+.lifetime-box { background: var(--sage-deeper); border-radius: var(--radius); padding: 14px; text-align: center; margin: 1rem; }
+.lifetime-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #a8d4a8; margin-bottom: 4px; }
+.lifetime-val { font-size: 28px; font-weight: 600; color: #fff; }
+.lifetime-sub { font-size: 11px; color: #a8d4a8; margin-top: 2px; }
+.about-text { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+/* Paywall badge */
+.paywall-badge { background: var(--sage-deeper); margin: 0.75rem 1rem; border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--sage-dark); }
+.paywall-badge-left { flex: 1; }
+.paywall-badge-title { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 2px; }
+.paywall-badge-sub { font-size: 11px; color: #a8d4a8; }
+.badge-upgrade-btn { background: #fff; color: var(--sage-deeper); font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: none; cursor: pointer; white-space: nowrap; font-family: 'DM Sans', sans-serif; }
+
+/* Body */
+.body-pad { padding: 1rem; }
+.scan-strip { background: var(--sage-light); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--muted); display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+.scan-strip strong { color: var(--ink); }
+.scans-low { color: var(--amber); font-weight: 600; }
+.section-label { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+
+/* Category grid */
+.cat-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
+.cat-btn { background: var(--card); border: 2px solid var(--border); border-radius: var(--radius); padding: 18px 12px; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.cat-btn:hover { border-color: var(--sage); background: var(--sage-light); }
+.cat-btn.selected { border-color: var(--sage-dark); background: var(--sage-light); }
+.cat-icon { font-size: 26px; line-height: 1; }
+.cat-label { font-size: 13px; font-weight: 500; }
+.cat-sub { font-size: 10px; color: var(--muted); }
+
+/* Camera screen */
+.camera-screen { padding: 1rem; }
+.back-btn { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--sage-dark); background: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; margin-bottom: 1rem; padding: 0; font-weight: 500; }
+.camera-cat-header { background: var(--sage-deeper); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 12px; margin-bottom: 1.25rem; }
+.camera-cat-icon { font-size: 28px; }
+.camera-cat-title { font-size: 16px; font-weight: 600; color: #fff; }
+.camera-cat-sub { font-size: 12px; color: #a8d4a8; margin-top: 1px; }
+.camera-zone { border: 2px dashed var(--sage-mid); border-radius: var(--radius); background: var(--sage-light); text-align: center; padding: 2.5rem 1rem; cursor: pointer; margin-bottom: 12px; }
+.camera-zone:hover { background: #dceadc; }
+.camera-zone-icon { font-size: 44px; margin-bottom: 10px; }
+.camera-zone-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.camera-zone-hint { font-size: 12px; color: var(--muted); }
+.camera-or { text-align: center; font-size: 12px; color: var(--muted); margin: 10px 0; }
+.btn-gallery { width: 100%; padding: 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; border-radius: 8px; border: 2px solid var(--border); background: var(--card); color: var(--ink); cursor: pointer; }
+.btn-gallery:hover { background: var(--sage-light); }
+
+/* Preview */
+.preview-wrap { position: relative; margin-bottom: 12px; }
+.preview-img { width: 100%; display: block; max-height: 360px; object-fit: contain; border-radius: var(--radius); border: 2px solid var(--border); background: var(--sage-light); }
+.preview-badge { position: absolute; top: 10px; left: 10px; background: var(--sage-deeper); color: #fff; font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 20px; }
+.btn-scan { width: 100%; padding: 14px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; border-radius: 8px; border: none; background: var(--sage-deeper); color: #fff; cursor: pointer; margin-bottom: 10px; }
+.btn-scan:active { opacity: 0.85; }
+.change-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.change-row span { text-decoration: underline; cursor: pointer; }
+
+/* Loading */
+.loading-wrap { text-align: center; padding: 3.5rem 1rem; }
+.spinner { width: 36px; height: 36px; border: 2.5px solid var(--border); border-top-color: var(--sage-dark); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-msg { font-size: 14px; color: var(--ink); font-weight: 500; margin-bottom: 4px; }
+.loading-sub { font-size: 12px; color: var(--muted); }
+.trust-verify { font-size: 13px; font-weight: 600; color: var(--sage-deeper); background: var(--sage-light); border: 1px solid var(--sage-mid); border-radius: 8px; padding: 10px 16px; margin: 16px 1rem 0; text-align: center; display: none; }
+
+/* Results */
+.results-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.75rem; }
+.results-title { font-size: 17px; font-weight: 600; }
+.btn-reset { font-size: 12px; color: var(--muted); background: none; border: none; cursor: pointer; text-decoration: underline; font-family: 'DM Sans', sans-serif; }
+.stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 1.25rem; }
+.stat { background: var(--sage-light); border-radius: 8px; padding: 10px 12px; border: 1px solid var(--border); }
+.stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+.stat-val { font-size: 18px; font-weight: 600; }
+.btn-share { width: 100%; padding: 11px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; border-radius: 8px; border: 2px solid var(--sage-dark); background: var(--sage-light); color: var(--sage-deeper); cursor: pointer; margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-share:hover { background: var(--sage-mid); }
+
+/* Item cards */
+.item-card { background: var(--card); border: 2.5px solid var(--border); border-radius: var(--radius); padding: 14px 15px; margin-bottom: 14px; }
+.item-card.high { border-left: 5px solid var(--sage-dark); border-color: var(--sage-mid); }
+.item-card.medium { border-left: 5px solid var(--amber); border-color: #e8d4b0; }
+.item-card.low { border-left: 5px solid #bbb; }
+.item-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.item-author { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.badges-row { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+.badge-tier { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+.badge-tier.high { background: var(--green-bg); color: var(--green-text); }
+.badge-tier.medium { background: var(--amber-bg); color: var(--amber-text); }
+.badge-tier.low { background: var(--sage-light); color: var(--muted); }
+.item-reason { font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 8px; }
+.value-range-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; background: var(--sage-light); border-radius: 6px; padding: 6px 10px; }
+.value-range-label { font-size: 11px; color: var(--muted); }
+.value-range-val { font-size: 14px; font-weight: 600; color: var(--sage-deeper); }
+.value-range-source { font-size: 10px; color: var(--muted); margin-left: auto; font-style: italic; }
+.location-row { font-size: 12px; color: var(--muted); margin-bottom: 8px; display: flex; align-items: flex-start; gap: 6px; }
+.location-row span { color: var(--ink); }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.tag { font-size: 10px; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border); color: var(--muted); background: var(--sage-light); }
+
+/* Price box */
+.price-box { background: var(--sage-light); border: 1.5px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+.price-box-title { font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 6px; }
+.price-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; margin-bottom: 5px; }
+.pc-label { font-size: 9px; color: var(--muted); margin-bottom: 1px; }
+.pc-val { font-size: 15px; font-weight: 600; }
+.price-count { font-size: 10px; color: var(--muted); margin-bottom: 6px; }
+.no-price { font-size: 12px; color: var(--muted); font-style: italic; margin-bottom: 6px; }
+.btn-ebay { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; text-align: center; font-size: 11px; color: var(--sage-deeper); border: 1.5px solid var(--border); background: var(--card); padding: 7px; border-radius: 6px; text-decoration: none; font-weight: 500; }
+.btn-ebay:hover { background: #f0f0ee; }
+.ebay-logo { font-size: 13px; font-weight: 800; letter-spacing: -0.5px; }
+.ebay-logo .e { color: #e53238; }
+.ebay-logo .b { color: #0064d2; }
+.ebay-logo .a { color: #f5af02; }
+.ebay-logo .y { color: #86b817; }
+
+/* Skeleton card */
+.skeleton-card { background: var(--card); border: 2.5px solid var(--border); border-radius: var(--radius); padding: 14px 15px; margin-bottom: 14px; animation: pulse 1.5s ease-in-out infinite; }
+.skeleton-line { background: var(--sage-light); border-radius: 4px; margin-bottom: 8px; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+
+/* Checklist */
+.toggle-checks { font-size: 11px; color: var(--sage-dark); background: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; text-decoration: underline; margin-bottom: 6px; display: block; padding: 0; }
+.checklist { margin: 0 0 8px; padding-left: 15px; }
+.checklist li { font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 3px; }
+
+/* Disclaimer */
+.disclaimer { font-size: 11px; color: var(--muted); text-align: center; padding: 6px 12px; font-style: italic; border-top: 1px solid var(--border); margin-top: 4px; }
+
+/* Paywall */
+.paywall-full { background: var(--card); border: 2px solid var(--border); border-radius: var(--radius); padding: 1.5rem; text-align: center; margin-top: 1rem; }
+.paywall-icon { font-size: 32px; margin-bottom: 10px; }
+.paywall-title { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+.paywall-sub { font-size: 13px; color: var(--muted); margin-bottom: 1.25rem; line-height: 1.5; }
+.btn-upgrade-full { display: block; width: 100%; padding: 13px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; border-radius: 8px; border: none; background: var(--sage-deeper); color: #fff; cursor: pointer; margin-bottom: 10px; text-decoration: none; text-align: center; }
+.paywall-note { font-size: 11px; color: var(--muted); }
+
+/* Error */
+.error { background: var(--red-bg); border: 1px solid var(--red-border); border-radius: 8px; padding: 12px 14px; font-size: 13px; color: var(--red-text); margin-bottom: 12px; word-break: break-word; }
+.no-items { text-align: center; padding: 2.5rem 1rem; font-size: 14px; color: var(--muted); }
+
+/* First launch overlay */
+.launch-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 500; align-items: center; justify-content: center; padding: 1.5rem; }
+.launch-overlay.open { display: flex; }
+.launch-card { background: var(--card); border-radius: 20px; padding: 2rem 1.5rem; max-width: 340px; width: 100%; text-align: center; }
+.launch-logo { margin-bottom: 1rem; }
+.launch-title { font-size: 22px; font-weight: 700; color: var(--sage-deeper); margin-bottom: 8px; }
+.launch-body { font-size: 14px; color: var(--muted); line-height: 1.6; margin-bottom: 1.5rem; }
+.launch-body strong { color: var(--ink); }
+.launch-dismiss { width: 100%; padding: 13px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; border-radius: 10px; border: none; background: var(--sage-deeper); color: #fff; cursor: pointer; }
+
+canvas { display: none; }
+input[type=file] { display: none; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- FIRST LAUNCH OVERLAY -->
+  <div class="launch-overlay" id="launch-overlay">
+    <div class="launch-card">
+      <div class="launch-logo">
+        <svg width="200" height="56" viewBox="0 0 220 76" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <text x="2" y="64" font-family="Georgia, serif" font-size="40" font-weight="700" fill="#2d5233" letter-spacing="-1">Picker I</text>
+          <circle cx="176" cy="48" r="18" fill="#e8f0e8" stroke="#2d5233" stroke-width="4"/>
+          <rect x="164" y="37" width="4.5" height="18" rx="2.25" fill="#4a7550"/>
+          <rect x="171" y="39" width="3.5" height="16" rx="1.75" fill="#7a9e7e"/>
+          <rect x="177" y="35" width="5" height="20" rx="2.5" fill="#2d5233"/>
+          <rect x="184" y="38" width="3.5" height="17" rx="1.75" fill="#7a9e7e"/>
+          <circle cx="166" cy="38" r="3" fill="white" opacity="0.75"/>
+          <line x1="188" y1="61" x2="202" y2="75" stroke="#2d5233" stroke-width="5.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="launch-title">Welcome to PickerIQ</div>
+      <div class="launch-body">
+        PickerIQ is a <strong>time-saving tool for resellers</strong> — not a price guide.<br><br>
+        Point your camera at any shelf of books, games, toys, or media. We'll highlight the few items <strong>worth a closer look</strong> so you can move on faster.<br><br>
+        Results are a <strong>starting point</strong>. Always verify value before you buy. <strong>Trust but Verify.</strong>
+      </div>
+      <button class="launch-dismiss" onclick="dismissLaunch()">Got it, let's go picking! 🤙</button>
+    </div>
+  </div>
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="logo-row">
+      <svg width="160" height="44" viewBox="0 0 220 76" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <text x="2" y="64" font-family="Georgia, serif" font-size="40" font-weight="700" fill="white" letter-spacing="-1">Picker I</text>
+        <circle cx="176" cy="48" r="18" fill="rgba(255,255,255,0.15)" stroke="white" stroke-width="4"/>
+        <rect x="164" y="37" width="4.5" height="18" rx="2.25" fill="#a8d4a8"/>
+        <rect x="171" y="39" width="3.5" height="16" rx="1.75" fill="rgba(255,255,255,0.6)"/>
+        <rect x="177" y="35" width="5" height="20" rx="2.5" fill="white"/>
+        <rect x="184" y="38" width="3.5" height="17" rx="1.75" fill="rgba(255,255,255,0.6)"/>
+        <circle cx="166" cy="38" r="3" fill="white" opacity="0.5"/>
+        <line x1="188" y1="61" x2="202" y2="75" stroke="white" stroke-width="5.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <button class="menu-btn" onclick="openMenu()">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+
+  <!-- MENU -->
+  <div class="menu-overlay" id="menu-overlay" onclick="closeMenu()"></div>
+  <div class="menu-panel" id="menu-panel">
+    <div class="menu-header">
+      <div class="menu-title">PickerIQ</div>
+      <button class="menu-close" onclick="closeMenu()">✕</button>
+    </div>
+    <div class="menu-section">
+      <div class="menu-section-title">Filter Results</div>
+      <div class="filter-opts">
+        <button class="filter-opt active" onclick="setFilter(0,this)">All</button>
+        <button class="filter-opt" onclick="setFilter(10,this)">$10+</button>
+        <button class="filter-opt" onclick="setFilter(20,this)">$20+</button>
+        <button class="filter-opt" onclick="setFilter(30,this)">$30+</button>
+        <button class="filter-opt" onclick="setFilter(50,this)">$50+</button>
+      </div>
+    </div>
+    <div class="menu-section">
+      <div class="menu-section-title">Previous Scans</div>
+      <div class="history-list" id="history-list">
+        <div class="history-empty">No scans yet — go find something!</div>
+      </div>
+    </div>
+    <div class="menu-section">
+      <div class="menu-section-title">About PickerIQ</div>
+      <div class="about-text">PickerIQ is a picker's tool, not a price guide. Snap a photo of any shelf and we'll flag the handful of items worth a second look — so you spend less time guessing and more time hunting. Results are AI-assisted and should always be verified before you buy. <strong>Trust but Verify.</strong></div>
+    </div>
+    <div class="lifetime-box">
+      <div class="lifetime-label">Total Lifetime Value Scanned</div>
+      <div class="lifetime-val" id="lifetime-val">$0</div>
+      <div class="lifetime-sub">estimated midpoint across all scans</div>
+    </div>
+  </div>
+
+  <!-- CATEGORY SCREEN -->
+  <div id="s-category">
+    <div id="paywall-badge-top" style="display:none">
+      <div class="paywall-badge">
+        <div class="paywall-badge-left">
+          <div class="paywall-badge-title">Free trial ended</div>
+          <div class="paywall-badge-sub">Get 50 scans every month for $9.99</div>
+        </div>
+        <a class="badge-upgrade-btn" href="mailto:SbrinksAI@Yahoo.com?subject=PickerIQ Pro Subscription">$9.99/mo</a>
+      </div>
+    </div>
+    <div class="body-pad">
+      <div class="scan-strip">
+        <span>Scans remaining: <strong id="scans-display">20</strong></span>
+        <span id="scans-label">0 of 20 used</span>
+      </div>
+      <div class="section-label">What are you scanning?</div>
+      <div class="cat-grid">
+        <button class="cat-btn" onclick="selectCategory('toys')" id="cat-toys"><div class="cat-icon">🤖</div><div class="cat-label">Toys & Figures</div><div class="cat-sub">Action figures, diecast, collectibles</div></button>
+        <button class="cat-btn" onclick="selectCategory('videogames')" id="cat-videogames"><div class="cat-icon">🎮</div><div class="cat-label">Video Games</div><div class="cat-sub">Games, consoles, accessories</div></button>
+        <button class="cat-btn" onclick="selectCategory('sportscards')" id="cat-sportscards"><div class="cat-icon">🃏</div><div class="cat-label">Sports & Pokemon</div><div class="cat-sub">Cards, graded slabs, sets</div></button>
+        <button class="cat-btn" onclick="selectCategory('books')" id="cat-books"><div class="cat-icon">📚</div><div class="cat-label">Books</div><div class="cat-sub">First editions, signed, rare</div></button>
+        <button class="cat-btn" onclick="selectCategory('bluray')" id="cat-bluray"><div class="cat-icon">💿</div><div class="cat-label">Blu-ray & DVD</div><div class="cat-sub">OOP, Criterion, Steelbooks</div></button>
+        <button class="cat-btn" onclick="selectCategory('cds')" id="cat-cds"><div class="cat-icon">🎵</div><div class="cat-label">CDs</div><div class="cat-sub">Original pressings, imports, promos</div></button>
+        <button class="cat-btn" onclick="selectCategory('vhs')" id="cat-vhs"><div class="cat-icon">📼</div><div class="cat-label">VHS</div><div class="cat-sub">Big box, sealed, horror, Disney</div></button>
+        <button class="cat-btn" onclick="selectCategory('cassettes')" id="cat-cassettes"><div class="cat-icon">📻</div><div class="cat-label">Cassettes</div><div class="cat-sub">Hip hop, metal, sealed, promos</div></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CAMERA SCREEN -->
+  <div id="s-camera" style="display:none">
+    <div class="camera-screen">
+      <button class="back-btn" onclick="show('s-category')">← Back</button>
+      <div class="camera-cat-header">
+        <div class="camera-cat-icon" id="camera-cat-icon"></div>
+        <div><div class="camera-cat-title" id="camera-cat-title"></div><div class="camera-cat-sub" id="camera-cat-sub"></div></div>
+      </div>
+      <div class="camera-zone" onclick="document.getElementById('fi-camera').click()">
+        <div class="camera-zone-icon">📷</div>
+        <div class="camera-zone-title">Take a photo</div>
+        <div class="camera-zone-hint">Opens your camera directly</div>
+      </div>
+      <input type="file" id="fi-camera" accept="image/*" capture="environment" onchange="handleFile(this)">
+      <div class="camera-or">or</div>
+      <button class="btn-gallery" onclick="document.getElementById('fi-gallery').click()">Choose from gallery</button>
+      <input type="file" id="fi-gallery" accept="image/*" onchange="handleFile(this)">
+    </div>
+  </div>
+
+  <!-- PREVIEW SCREEN -->
+  <div id="s-preview" style="display:none">
+    <div class="camera-screen">
+      <button class="back-btn" onclick="show('s-camera')">← Retake</button>
+      <div class="preview-wrap">
+        <img id="preview" class="preview-img" src="" alt="preview">
+        <div class="preview-badge" id="preview-badge"></div>
+      </div>
+      <div id="error-box" class="error" style="display:none"></div>
+      <button class="btn-scan" onclick="runScan()">Scan for valuable items</button>
+      <div class="change-row">
+        <span onclick="show('s-category')">Change category</span>
+        <span onclick="show('s-camera')">Retake photo</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOADING SCREEN -->
+  <div id="s-loading" style="display:none">
+    <div class="loading-wrap">
+      <div class="spinner"></div>
+      <div class="loading-msg" id="loading-msg">Identifying items...</div>
+      <div class="loading-sub" id="loading-sub"></div>
+    </div>
+    <div class="trust-verify" id="trust-verify">🔍 Trust but Verify — always confirm value before you buy</div>
+  </div>
+
+  <!-- RESULTS SCREEN -->
+  <div id="s-results" style="display:none">
+    <div class="body-pad">
+      <div class="results-top">
+        <div class="results-title" id="r-title">Results</div>
+        <button class="btn-reset" onclick="fullReset()">New scan</button>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="stat-label">Items spotted</div><div class="stat-val" id="r-total">—</div></div>
+        <div class="stat"><div class="stat-label">Worth checking</div><div class="stat-val" id="r-worthy">—</div></div>
+        <div class="stat"><div class="stat-label">Est. haul value</div><div class="stat-val" id="r-top">—</div></div>
+      </div>
+      <button class="btn-share" onclick="generateShareCard()">📤 Share this find</button>
+      <div id="items-list"></div>
+      <div id="paywall-prompt" style="display:none"></div>
+    </div>
+  </div>
+
+</div>
+
+<canvas id="share-canvas"></canvas>
+
+<script>
+const CAT_META = {
+  toys:        { icon:'🤖', label:'Toys & Figures',   sub:'Looking for MOC, variants, vintage production' },
+  videogames:  { icon:'🎮', label:'Video Games',       sub:'Checking labels, CIB status, rare platforms' },
+  sportscards: { icon:'🃏', label:'Sports & Pokemon',  sub:'Scanning for rookies, parallels, first editions' },
+  books:       { icon:'📚', label:'Books',             sub:'Identifying first editions, signatures, rare prints' },
+  bluray:      { icon:'💿', label:'Blu-ray & DVD',     sub:'Checking OOP, Criterion, Steelbooks' },
+  cds:         { icon:'🎵', label:'CDs',               sub:'Looking for OBI strips, promos, original pressings' },
+  vhs:         { icon:'📼', label:'VHS',               sub:'Checking for big box, sealed, horror, Disney' },
+  cassettes:   { icon:'📻', label:'Cassettes',         sub:'Checking sealed, hip hop, metal, promos' }
+};
+
+const STEPS = {
+  toys:        ['Spotting figures and packaging...','Checking production markings...','Looking for variants and errors...','Looking up eBay sold prices...','Almost done...'],
+  videogames:  ['Identifying game titles...','Checking label versions...','Looking for CIB and sealed copies...','Looking up eBay sold prices...','Almost done...'],
+  sportscards: ['Spotting cards...','Checking for rookies and parallels...','Looking for first edition stamps...','Looking up eBay sold prices...','Almost done...'],
+  books:       ['Reading spines...','Checking edition markings...','Looking for signatures and dust jackets...','Looking up eBay sold prices...','Almost done...'],
+  bluray:      ['Identifying titles...','Checking for OOP and Steelbooks...','Looking for Criterion releases...','Looking up eBay sold prices...','Almost done...'],
+  cds:         ['Reading spines...','Checking for OBI strips and promos...','Identifying original pressings...','Looking up eBay sold prices...','Almost done...'],
+  vhs:         ['Identifying tapes...','Checking for big box and sealed...','Looking for Disney and horror titles...','Looking up eBay sold prices...','Almost done...'],
+  cassettes:   ['Reading labels...','Checking for sealed copies and promos...','Identifying original pressings...','Looking up eBay sold prices...','Almost done...']
+};
+
+let selectedCategory = null;
+let b64 = null;
+let currentImageSrc = null;
+let currentItems = [];
+let scansRemaining = 20;
+let minFilter = 0;
+let scanHistory = [];
+let lifetimeValue = 0;
+let loadingInterval = null;
+
+function loadStorage() {
+  const lastReset = localStorage.getItem('piq_last_reset');
+  const now = new Date();
+  const thisMonth = now.getFullYear() + '-' + now.getMonth();
+  if (lastReset !== thisMonth) {
+    const isPro = localStorage.getItem('piq_pro') === 'true';
+    localStorage.setItem('piq_scans', isPro ? '50' : '20');
+    localStorage.setItem('piq_last_reset', thisMonth);
+  }
+  const s = localStorage.getItem('piq_scans');
+  if (s !== null) scansRemaining = parseInt(s);
+  const h = localStorage.getItem('piq_history');
+  if (h) scanHistory = JSON.parse(h);
+  const lv = localStorage.getItem('piq_lifetime');
+  if (lv) lifetimeValue = parseFloat(lv);
+  const adminKey = localStorage.getItem('piq_admin');
+  if (adminKey === 'SBRINKSAI') scansRemaining = 9999;
+  updateScanDisplay();
+  updateLifetime();
+  renderHistory();
+  // First launch check
+  if (!localStorage.getItem('piq_launched')) {
+    document.getElementById('launch-overlay').classList.add('open');
+  }
+}
+
+function dismissLaunch() {
+  localStorage.setItem('piq_launched', '1');
+  document.getElementById('launch-overlay').classList.remove('open');
+}
+
+function saveStorage() {
+  localStorage.setItem('piq_scans', scansRemaining);
+  localStorage.setItem('piq_history', JSON.stringify(scanHistory.slice(0,20)));
+  localStorage.setItem('piq_lifetime', lifetimeValue);
+}
+
+function updateScanDisplay() {
+  const el = document.getElementById('scans-display');
+  const label = document.getElementById('scans-label');
+  const badge = document.getElementById('paywall-badge-top');
+  if (!el) return;
+  const isPro = localStorage.getItem('piq_pro') === 'true';
+  const isAdmin = localStorage.getItem('piq_admin') === 'SBRINKSAI';
+  const maxScans = isAdmin ? 9999 : isPro ? 50 : 20;
+  const used = maxScans - scansRemaining;
+  el.textContent = Math.max(0, scansRemaining);
+  el.style.color = scansRemaining <= (isPro ? 5 : 2) ? 'var(--amber)' : '';
+  label.textContent = isAdmin ? 'Admin — unlimited' : `${Math.max(0,used)} of ${maxScans} used`;
+  label.className = scansRemaining <= (isPro ? 5 : 2) ? 'scans-low' : '';
+  badge.style.display = scansRemaining <= 0 ? 'block' : 'none';
+}
+
+function updateLifetime() {
+  document.getElementById('lifetime-val').textContent = '$' + Math.round(lifetimeValue).toLocaleString();
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (scanHistory.length === 0) { list.innerHTML = '<div class="history-empty">No scans yet — go find something!</div>'; return; }
+  list.innerHTML = scanHistory.map((h,i) => `
+    <div class="history-item" onclick="reloadHistory(${i}); closeMenu();">
+      <div class="history-cat">${CAT_META[h.category]?.icon||''} ${CAT_META[h.category]?.label||h.category}</div>
+      <div class="history-top">${h.worthy} item${h.worthy!==1?'s':''} worth checking</div>
+      <div class="history-meta">${h.date} · Est. $${h.estValue}</div>
+    </div>`).join('');
+}
+
+function reloadHistory(idx) {
+  const h = scanHistory[idx];
+  if (!h) return;
+  selectedCategory = h.category;
+  currentItems = h.items;
+  renderResults({ total_items_spotted: h.total, items: h.items }, true);
+}
+
+function show(id) {
+  ['s-category','s-camera','s-preview','s-loading','s-results'].forEach(s => {
+    const el = document.getElementById(s);
+    if (el) el.style.display = s === id ? 'block' : 'none';
+  });
+}
+
+function selectCategory(cat) {
+  selectedCategory = cat;
+  const meta = CAT_META[cat];
+  document.getElementById('camera-cat-icon').textContent = meta.icon;
+  document.getElementById('camera-cat-title').textContent = meta.label;
+  document.getElementById('camera-cat-sub').textContent = meta.sub;
+  document.getElementById('preview-badge').textContent = meta.icon + ' ' + meta.label;
+  show('s-camera');
+}
+
+function handleFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1000;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      const jpeg = c.toDataURL('image/jpeg', 0.88);
+      b64 = jpeg.split(',')[1];
+      currentImageSrc = jpeg;
+      document.getElementById('preview').src = jpeg;
+      document.getElementById('error-box').style.display = 'none';
+      show('s-preview');
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function fullReset() {
+  b64 = null; currentImageSrc = null; selectedCategory = null; currentItems = [];
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('selected'));
+  show('s-category');
+}
+
+function openMenu() {
+  document.getElementById('menu-overlay').classList.add('open');
+  document.getElementById('menu-panel').classList.add('open');
+}
+
+function closeMenu() {
+  document.getElementById('menu-overlay').classList.remove('open');
+  document.getElementById('menu-panel').classList.remove('open');
+}
+
+function setFilter(val, btn) {
+  minFilter = val;
+  document.querySelectorAll('.filter-opt').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (currentItems.length) renderItemCards(currentItems.filter(i => getMidValue(i) >= minFilter || minFilter === 0));
+  closeMenu();
+}
+
+function getMidValue(item) {
+  if (item.ebay_prices) return item.ebay_prices.avg;
+  if (item.value_range_estimate) {
+    const nums = item.value_range_estimate.match(/\d+/g);
+    if (nums && nums.length >= 2) return (parseInt(nums[0]) + parseInt(nums[1])) / 2;
+    if (nums && nums.length === 1) return parseInt(nums[0]);
+  }
+  return item.value_tier === 'high' ? 50 : item.value_tier === 'medium' ? 25 : 10;
+}
+
+async function runScan() {
+  if (!b64 || !selectedCategory) return;
+  if (scansRemaining <= 0) { showPaywallGate(); return; }
+
+  show('s-loading');
+  const steps = STEPS[selectedCategory] || STEPS.books;
+  let si = 0;
+  document.getElementById('loading-msg').textContent = steps[0];
+  document.getElementById('loading-sub').textContent = CAT_META[selectedCategory]?.label || '';
+  const tv = document.getElementById('trust-verify');
+  tv.style.display = 'none';
+
+  loadingInterval = setInterval(() => {
+    si = Math.min(si + 1, steps.length - 1);
+    document.getElementById('loading-msg').textContent = steps[si];
+    // Show trust but verify on second to last step
+    if (si >= steps.length - 2) tv.style.display = 'block';
+  }, 3000);
+
+  try {
+    const res = await fetch('/api/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: b64, category: selectedCategory })
+    });
+
+    clearInterval(loadingInterval);
+    const text = await res.text();
+
+    if (!res.ok) {
+      if (text.includes('overloaded')) {
+        show('s-preview');
+        const eb = document.getElementById('error-box');
+        eb.style.display = 'block';
+        eb.textContent = 'AI is temporarily busy — wait a minute and try again. This scan has not been counted.';
+        return;
+      }
+      throw new Error('Server error ' + res.status + ': ' + text.slice(0, 300));
+    }
+
+    const data = JSON.parse(text);
+    currentItems = data.items || [];
+
+    // Count scan only on success
+    scansRemaining = Math.max(0, scansRemaining - 1);
+    currentItems.forEach(item => { lifetimeValue += getMidValue(item); });
+
+    const worthy = currentItems.filter(i => i.value_tier === 'high' || i.value_tier === 'medium').length;
+    const estVal = Math.round(currentItems.reduce((s,i) => s + getMidValue(i), 0));
+    scanHistory.unshift({
+      category: selectedCategory, date: new Date().toLocaleDateString(),
+      total: data.total_items_spotted, worthy, estValue: estVal, items: currentItems
+    });
+
+    saveStorage(); updateScanDisplay(); updateLifetime(); renderHistory();
+    renderResults(data, false);
+
+  } catch(err) {
+    clearInterval(loadingInterval);
+    show('s-preview');
+    const eb = document.getElementById('error-box');
+    eb.style.display = 'block';
+    eb.textContent = err.message;
+  }
+}
+
+function renderResults(data, fromHistory) {
+  const items = data.items || [];
+  const worthy = items.filter(i => i.value_tier === 'high' || i.value_tier === 'medium').length;
+  const totalMid = Math.round(items.reduce((s,i) => s + getMidValue(i), 0));
+
+  document.getElementById('r-total').textContent = data.total_items_spotted ?? 0;
+  document.getElementById('r-worthy').textContent = worthy;
+  document.getElementById('r-top').textContent = totalMid > 0 ? '$' + totalMid : '—';
+  document.getElementById('r-title').textContent = worthy > 0
+    ? `${worthy} item${worthy !== 1 ? 's' : ''} worth investigating`
+    : 'No standout items found';
+
+  // Show skeleton cards first then populate progressively
+  const filtered = minFilter === 0 ? items : items.filter(i => getMidValue(i) >= minFilter);
+  showSkeletons(filtered.length);
+
+  setTimeout(() => renderItemCards(filtered), 100);
+
+  const paywallEl = document.getElementById('paywall-prompt');
+  if (!fromHistory && scansRemaining <= 0) {
+    paywallEl.style.display = 'block';
+    paywallEl.innerHTML = buildPaywallHtml();
+  } else {
+    paywallEl.style.display = 'none';
+  }
+
+  show('s-results');
+}
+
+function showSkeletons(count) {
+  const list = document.getElementById('items-list');
+  list.innerHTML = Array(Math.min(count, 5)).fill(0).map(() => `
+    <div class="skeleton-card">
+      <div class="skeleton-line" style="height:16px;width:60%;margin-bottom:8px;"></div>
+      <div class="skeleton-line" style="height:12px;width:40%;margin-bottom:12px;"></div>
+      <div class="skeleton-line" style="height:12px;width:90%;"></div>
+      <div class="skeleton-line" style="height:12px;width:75%;"></div>
+    </div>`).join('');
+}
+
+function renderItemCards(items) {
+  const list = document.getElementById('items-list');
+  list.innerHTML = '';
+
+  if (items.length === 0) {
+    list.innerHTML = '<div class="no-items">No items match this filter.<br>Try a lower minimum or scan another shelf.</div>';
+    return;
+  }
+
+  // Progressive reveal — add cards one at a time with delay
+  items.forEach((item, idx) => {
+    setTimeout(() => {
+      const card = buildCard(item, idx);
+      list.appendChild(card);
+      // Fade in
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(8px)';
+      card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+      requestAnimationFrame(() => {
+        card.style.opacity = '1';
+        card.style.transform = 'translateY(0)';
+      });
+    }, idx * 120);
+  });
+}
+
+function buildCard(item, idx) {
+  const card = document.createElement('div');
+  card.className = 'item-card ' + (item.value_tier || 'low');
+  const tierLabel = item.value_tier === 'high' ? 'High value' : item.value_tier === 'medium' ? 'Check it' : 'Low potential';
+  const tagsHtml = (item.tags || []).map(t => `<span class="tag">${t}</span>`).join('');
+  const checksHtml = (item.what_to_check || []).map(c => `<li>${c}</li>`).join('');
+  const checkId = 'chk-' + idx;
+
+  // Value range — use eBay data if available, else AI estimate flagged
+  let rangeStr = '', rangeSource = '';
+  if (item.ebay_prices) {
+    rangeStr = `$${item.ebay_prices.min}–$${item.ebay_prices.max}`;
+    rangeSource = 'eBay sold data';
+  } else if (item.value_range_estimate) {
+    rangeStr = item.value_range_estimate;
+    rangeSource = 'AI estimate — verify';
+  } else {
+    rangeStr = item.value_tier === 'high' ? '$40–$150' : item.value_tier === 'medium' ? '$20–$50' : '$5–$20';
+    rangeSource = 'AI estimate — verify';
+  }
+
+  let priceHtml = '';
+  if (item.ebay_prices) {
+    const p = item.ebay_prices;
+    priceHtml = `<div class="price-box">
+      <div class="price-box-title">eBay sold prices — ${p.count} completed listing${p.count!==1?'s':''}</div>
+      <div class="price-grid">
+        <div><div class="pc-label">Low</div><div class="pc-val">$${p.min}</div></div>
+        <div><div class="pc-label">Avg</div><div class="pc-val">$${p.avg}</div></div>
+        <div><div class="pc-label">High</div><div class="pc-val">$${p.max}</div></div>
+      </div>
+      <a class="btn-ebay" href="${item.ebay_search_url}" target="_blank">
+        <span class="ebay-logo"><span class="e">e</span><span class="b">b</span><span class="a">a</span><span class="y">y</span></span>
+        View all sold listings ↗
+      </a>
+    </div>`;
+  } else {
+    priceHtml = `<div class="price-box">
+      <div class="price-box-title">eBay sold prices</div>
+      <div class="no-price">No completed listings found — search manually to verify</div>
+      <a class="btn-ebay" href="${item.ebay_search_url}" target="_blank">
+        <span class="ebay-logo"><span class="e">e</span><span class="b">b</span><span class="a">a</span><span class="y">y</span></span>
+        Search eBay manually ↗
+      </a>
+    </div>`;
+  }
+
+  const locationHtml = item.location_description
+    ? `<div class="location-row">📍 <span>${item.location_description}</span></div>`
+    : '';
+
+  card.innerHTML = `
+    <div class="item-name">${item.title}</div>
+    <div class="item-author">${item.artist_author || ''}</div>
+    <div class="badges-row"><span class="badge-tier ${item.value_tier}">${tierLabel}</span></div>
+    <div class="value-range-row">
+      <span class="value-range-label">Est. value:</span>
+      <span class="value-range-val">${rangeStr}</span>
+      <span class="value-range-source">${rangeSource}</span>
+    </div>
+    <div class="item-reason">${item.reason}</div>
+    ${locationHtml}
+    ${tagsHtml ? `<div class="tags">${tagsHtml}</div>` : ''}
+    ${priceHtml}
+    ${checksHtml ? `
+      <button class="toggle-checks" onclick="toggleChecks('${checkId}')">▶ What to check on this item</button>
+      <ul class="checklist" id="${checkId}" style="display:none">${checksHtml}</ul>
+    ` : ''}
+    <div class="disclaimer">Results are AI-assisted — always verify before buying</div>
+  `;
+  return card;
+}
+
+function toggleChecks(id) {
+  const el = document.getElementById(id);
+  const btn = el.previousElementSibling;
+  const open = el.style.display === 'block';
+  el.style.display = open ? 'none' : 'block';
+  btn.textContent = (open ? '▶' : '▼') + ' What to check on this item';
+}
+
+function generateShareCard() {
+  const canvas = document.getElementById('share-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = 1080, H = 1080;
+  canvas.width = W; canvas.height = H;
+
+  const drawCard = () => {
+    // Dark overlay on photo
+    ctx.fillStyle = 'rgba(30,45,31,0.72)';
+    ctx.fillRect(0, 0, W, H);
+
+    // Top branding bar
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(0, 0, W, 130);
+
+    // Logo text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 54px Georgia, serif';
+    ctx.fillText('PickerIQ', 60, 88);
+    ctx.fillStyle = '#a8d4a8';
+    ctx.font = '26px DM Sans, sans-serif';
+    ctx.fillText("Today's finds", 60, 120);
+
+    // Date top right
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '22px DM Sans, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(new Date().toLocaleDateString(), W - 60, 88);
+    ctx.textAlign = 'left';
+
+    // Items
+    const topItems = currentItems.filter(i => i.value_tier === 'high' || i.value_tier === 'medium').slice(0, 4);
+    let y = 170;
+    topItems.forEach(item => {
+      const mid = getMidValue(item);
+      const rangeStr = item.ebay_prices ? `$${item.ebay_prices.min}–$${item.ebay_prices.max}` : (item.value_range_estimate || '$??');
+
+      ctx.fillStyle = 'rgba(255,255,255,0.1)';
+      roundRect(ctx, 50, y, W - 100, 165, 16); ctx.fill();
+
+      const tierColor = item.value_tier === 'high' ? '#4caf72' : '#e8a030';
+      ctx.fillStyle = tierColor;
+      roundRect(ctx, 50, y, 8, 165, 4); ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 34px DM Sans, sans-serif';
+      ctx.fillText(truncate(item.title, 30), 80, y + 48);
+      ctx.fillStyle = '#a8d4a8';
+      ctx.font = '24px DM Sans, sans-serif';
+      ctx.fillText(truncate(item.artist_author || '', 36), 80, y + 80);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 40px DM Sans, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(rangeStr, W - 70, y + 100);
+      ctx.fillStyle = '#a8d4a8';
+      ctx.font = '20px DM Sans, sans-serif';
+      ctx.fillText('est. value', W - 70, y + 130);
+      ctx.textAlign = 'left';
+
+      y += 190;
+    });
+
+    // Total bar
+    const total = Math.round(currentItems.reduce((s,i) => s + getMidValue(i), 0));
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    roundRect(ctx, 50, H - 190, W - 100, 110, 12); ctx.fill();
+    ctx.fillStyle = '#a8d4a8';
+    ctx.font = '22px DM Sans, sans-serif';
+    ctx.fillText('TOTAL ESTIMATED HAUL VALUE', 80, H - 145);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 58px DM Sans, sans-serif';
+    ctx.fillText('$' + total.toLocaleString(), 80, H - 88);
+
+    // Footer
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.font = '20px DM Sans, sans-serif';
+    ctx.fillText('Found with PickerIQ — Trust but Verify', 80, H - 44);
+
+    // Download
+    canvas.style.display = 'block';
+    const link = document.createElement('a');
+    link.download = 'pickeriq-find.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    canvas.style.display = 'none';
+
+    if (navigator.share) {
+      canvas.toBlob(blob => {
+        const file = new File([blob], 'pickeriq-find.png', { type: 'image/png' });
+        navigator.share({ title: 'PickerIQ Find', files: [file] }).catch(() => {});
+      });
+    }
+  };
+
+  if (currentImageSrc) {
+    const img = new Image();
+    img.onload = () => {
+      // Draw photo as background, cover style
+      const scale = Math.max(W / img.width, H / img.height);
+      const sw = img.width * scale, sh = img.height * scale;
+      const sx = (W - sw) / 2, sy = (H - sh) / 2;
+      ctx.drawImage(img, sx, sy, sw, sh);
+      drawCard();
+    };
+    img.src = currentImageSrc;
+  } else {
+    ctx.fillStyle = '#2d5233';
+    ctx.fillRect(0, 0, W, H);
+    drawCard();
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+}
+
+function truncate(str, max) {
+  if (!str) return '';
+  return str.length > max ? str.slice(0,max-1)+'…' : str;
+}
+
+function buildPaywallHtml() {
+  return `<div class="paywall-full">
+    <div class="paywall-icon">🔍</div>
+    <div class="paywall-title">Free trial ended</div>
+    <div class="paywall-sub">Upgrade to PickerIQ Pro for 50 scans every month.<br>At $9.99/month, one good find pays for itself.</div>
+    <a class="btn-upgrade-full" href="mailto:SbrinksAI@Yahoo.com?subject=PickerIQ Pro Subscription">Upgrade to Pro — $9.99/month</a>
+    <div class="paywall-note">Cancel anytime. Billed monthly.</div>
+  </div>`;
+}
+
+function showPaywallGate() {
+  show('s-results');
+  document.getElementById('r-title').textContent = 'Upgrade to keep scanning';
+  document.getElementById('items-list').innerHTML = '';
+  document.getElementById('r-total').textContent = '—';
+  document.getElementById('r-worthy').textContent = '—';
+  document.getElementById('r-top').textContent = '—';
+  const p = document.getElementById('paywall-prompt');
+  p.style.display = 'block';
+  p.innerHTML = buildPaywallHtml();
+}
+
+loadStorage();
+</script>
+</body>
+</html>
