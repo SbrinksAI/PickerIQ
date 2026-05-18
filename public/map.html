@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>PickerIQ — Hot Spot Map</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet"/>
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --sage-deeper: #2d5233; --sage-dark: #4a7550; --sage-light: #e8f0e8;
+  --sage-mid: #b8cfb8; --ink: #2c3c2c; --muted: #6b7d6b;
+  --card: #fff; --border: #c8d5c8; --bg: #f0f4f0;
+  --amber: #c17f24; --radius: 14px;
+}
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--ink); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Top bar */
+.top-bar { background: var(--sage-deeper); padding: 0.75rem 1rem; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; z-index: 10; }
+.top-bar-title { color: #fff; font-size: 16px; font-weight: 700; }
+.top-bar-sub { color: #a8d4a8; font-size: 11px; margin-top: 1px; }
+
+/* Layer controls */
+.layer-controls { background: var(--card); border-bottom: 1px solid var(--border); padding: 8px 1rem; flex-shrink: 0; }
+.layer-group { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+.layer-group:last-child { margin-bottom: 0; }
+.layer-group-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+.layer-btn { flex-shrink: 0; padding: 5px 10px; border-radius: 16px; border: 1.5px solid var(--border); background: var(--bg); color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+.layer-btn.active { background: var(--sage-deeper); color: #fff; border-color: var(--sage-deeper); }
+.layer-btn.active.amber { background: var(--amber); border-color: var(--amber); }
+.layer-btn.active.blue { background: #2980b9; border-color: #2980b9; }
+.layer-btn.active.purple { background: #7d3c98; border-color: #7d3c98; }
+.layer-btn.active.teal { background: #17a589; border-color: #17a589; }
+
+/* Map */
+#map { flex: 1; width: 100%; position: relative; }
+
+/* Loading overlay */
+.map-loading { position: absolute; inset: 0; background: rgba(240,244,240,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20; }
+.map-loading-spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--sage-dark); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.map-loading-text { font-size: 14px; font-weight: 500; color: var(--ink); margin-bottom: 4px; }
+.map-loading-sub { font-size: 12px; color: var(--muted); text-align: center; padding: 0 2rem; }
+
+/* Legend */
+.legend { position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,0.96); border-radius: 10px; padding: 10px 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.12); z-index: 5; min-width: 150px; display: none; }
+.legend.visible { display: block; }
+.legend-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 7px; }
+.legend-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; font-size: 11px; color: var(--ink); }
+.legend-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+/* Info panel */
+.info-panel { position: absolute; bottom: 68px; left: 10px; right: 10px; background: var(--card); border-radius: var(--radius); padding: 14px 16px 14px; box-shadow: 0 4px 24px rgba(0,0,0,0.18); z-index: 10; display: none; max-height: 55vh; overflow-y: auto; }
+.info-panel.open { display: block; }
+.info-panel-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+.info-panel-title { font-size: 15px; font-weight: 700; flex: 1; padding-right: 10px; }
+.info-panel-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--muted); flex-shrink: 0; }
+.info-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; font-size: 12px; line-height: 1.4; }
+.info-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+.info-label { color: var(--muted); margin-right: 4px; }
+.info-val { font-weight: 600; }
+.info-val.good { color: #1a9e4a; }
+.info-val.ok { color: var(--amber); }
+.info-val.bad { color: #c0392b; }
+
+/* Picker score */
+.picker-score { margin-top: 10px; border-radius: 10px; padding: 12px 14px; }
+.picker-score.great { background: #e4f7ec; border: 1.5px solid #b8e8c8; }
+.picker-score.good { background: #fef9e7; border: 1.5px solid #f0dfa0; }
+.picker-score.fair { background: #fdf3e3; border: 1.5px solid #e8d4b0; }
+.picker-score.low { background: #fceaea; border: 1.5px solid #f0c4be; }
+.picker-score-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; font-weight: 700; }
+.picker-score-val { font-size: 20px; font-weight: 800; margin-bottom: 3px; }
+.picker-score-val.great { color: #1a9e4a; }
+.picker-score-val.good { color: #d4a017; }
+.picker-score-val.fair { color: var(--amber); }
+.picker-score-val.low { color: #c0392b; }
+.picker-score-reason { font-size: 11px; color: var(--muted); line-height: 1.4; }
+
+/* Locate button */
+.locate-btn { position: absolute; bottom: 78px; right: 12px; width: 42px; height: 42px; background: var(--card); border-radius: 50%; border: none; box-shadow: 0 2px 12px rgba(0,0,0,0.15); cursor: pointer; font-size: 18px; z-index: 5; }
+
+/* Bottom tab bar */
+.tab-bar { background: var(--card); border-top: 1px solid var(--border); display: flex; flex-shrink: 0; box-shadow: 0 -2px 12px rgba(0,0,0,0.08); }
+.tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 4px 10px; border: none; background: none; cursor: pointer; font-family: 'DM Sans', sans-serif; gap: 3px; text-decoration: none; }
+.tab-icon { font-size: 22px; line-height: 1; }
+.tab-label { font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.03em; }
+.tab-btn.active .tab-label { color: var(--sage-deeper); }
+.tab-btn.active { background: var(--sage-light); }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div>
+    <div class="top-bar-title">🗺️ Hot Spot Map</div>
+    <div class="top-bar-sub">Find the best picking areas near you</div>
+  </div>
+  <button onclick="locateMe()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:6px 12px;border-radius:8px;font-family:DM Sans,sans-serif;font-size:12px;cursor:pointer;font-weight:500;">📍 Find Me</button>
+</div>
+
+<!-- Layer controls -->
+<div class="layer-controls">
+  <div class="layer-group-label">Housing</div>
+  <div class="layer-group">
+    <button class="layer-btn active" id="btn-age" onclick="toggleLayer('age',this)">🏚️ Home Age</button>
+    <button class="layer-btn active amber" id="btn-income" onclick="toggleLayer('income',this)">💰 Wealth</button>
+  </div>
+  <div class="layer-group-label" style="margin-top:4px;">Picking Signals</div>
+  <div class="layer-group">
+    <button class="layer-btn active blue" id="btn-seniors" onclick="toggleLayer('seniors',this)">👴 Seniors 65+</button>
+    <button class="layer-btn active purple" id="btn-owners" onclick="toggleLayer('owners',this)">🏠 Homeowners</button>
+    <button class="layer-btn active teal" id="btn-residence" onclick="toggleLayer('residence',this)">📅 Long Residence</button>
+  </div>
+</div>
+
+<div id="map" style="position:relative;">
+
+  <div class="map-loading" id="map-loading">
+    <div class="map-loading-spinner"></div>
+    <div class="map-loading-text">Setting up your picking radar...</div>
+    <div class="map-loading-sub" id="loading-sub-text">Locating you and loading neighborhood data</div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend" id="legend">
+    <div class="legend-title" id="legend-title">Home Age</div>
+    <div id="legend-items">
+      <div class="legend-row"><div class="legend-dot" style="background:#1a9e4a"></div>1960–1990 Prime</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#d4a017"></div>Pre-1960</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#7a9e7e"></div>1990–2000</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#c0392b"></div>Post-2000</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#aaa"></div>No data</div>
+    </div>
+  </div>
+
+  <!-- Info panel -->
+  <div class="info-panel" id="info-panel">
+    <div class="info-panel-header">
+      <div class="info-panel-title" id="info-title">Area Details</div>
+      <button class="info-panel-close" onclick="closeInfoPanel()">✕</button>
+    </div>
+    <div id="info-body"></div>
+    <div class="picker-score" id="picker-score-box">
+      <div class="picker-score-label">Picker Score</div>
+      <div class="picker-score-val" id="picker-score-val">—</div>
+      <div class="picker-score-reason" id="picker-score-reason"></div>
+    </div>
+  </div>
+
+  <button class="locate-btn" onclick="locateMe()">📍</button>
+
+</div>
+
+<!-- Bottom tab bar -->
+<div class="tab-bar">
+  <a class="tab-btn" href="/index.html">
+    <span class="tab-icon">📷</span>
+    <span class="tab-label">SCAN</span>
+  </a>
+  <a class="tab-btn active" href="/map.html">
+    <span class="tab-icon">🗺️</span>
+    <span class="tab-label">HOT SPOTS</span>
+  </a>
+</div>
+
+<script>
+const MAPBOX_TOKEN = 'pk.eyJ1Ijoic2JyaW5rc2FpIiwiYSI6ImNtcGFxanZ0azBiYmYycnB4dGVsOXgxazcifQ.o9vp6oHFoNgBehhVDhRJTA';
+const CENSUS_API_KEY = '1ebe62351a0865ac2772dd1c2ef3dc7d4f4d0565';
+
+mapboxgl.accessToken = MAPBOX_TOKEN;
+
+let map;
+let activeLayers = new Set(['age', 'income', 'seniors', 'owners', 'residence']);
+let tractFeatures = [];
+let userLocation = null;
+let userMarker = null;
+
+// ── Init map ──────────────────────────────────────────────────────────────────
+function initMap(lat, lng) {
+  map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/light-v11',
+    center: [lng, lat],
+    zoom: 12,
+    attributionControl: false
+  });
+  map.addControl(new mapboxgl.AttributionControl({ compact: true }));
+  map.on('load', () => loadAllCensusData(lat, lng));
+  map.on('click', onMapClick);
+}
+
+// ── Locate user ───────────────────────────────────────────────────────────────
+function locateMe() {
+  document.getElementById('map-loading').style.display = 'flex';
+  document.getElementById('loading-sub-text').textContent = 'Finding your location...';
+  navigator.geolocation.getCurrentPosition(pos => {
+    userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    if (map) {
+      map.flyTo({ center: [userLocation.lng, userLocation.lat], zoom: 13, duration: 1500 });
+      if (userMarker) userMarker.remove();
+      userMarker = new mapboxgl.Marker({ color: '#2d5233' })
+        .setLngLat([userLocation.lng, userLocation.lat])
+        .addTo(map);
+      loadAllCensusData(userLocation.lat, userLocation.lng);
+    } else {
+      initMap(userLocation.lat, userLocation.lng);
+    }
+  }, () => {
+    document.getElementById('map-loading').style.display = 'none';
+    alert('Could not get your location. Tap "Find Me" to try again.');
+  }, { timeout: 10000, enableHighAccuracy: true });
+}
+
+// ── Load Census data ──────────────────────────────────────────────────────────
+async function loadAllCensusData(lat, lng) {
+  try {
+    document.getElementById('loading-sub-text').textContent = 'Identifying your area...';
+
+    // Get FIPS codes from Census geocoder
+    const geoRes = await fetch(
+      `https://geocoding.geo.census.gov/geocoder/geographies/coordinates?x=${lng}&y=${lat}&benchmark=Public_AR_Current&vintage=Current_Current&format=json`
+    );
+    const geoData = await geoRes.json();
+    const tract = geoData?.result?.geographies?.['Census Tracts']?.[0];
+    if (!tract) throw new Error('No census tract found for this location');
+
+    const state = tract.STATE;
+    const county = tract.COUNTY;
+
+    document.getElementById('loading-sub-text').textContent = 'Loading housing data...';
+
+    // Fetch all variables in one Census API call
+    // B25035: median year built
+    // B19013: median household income
+    // B01001: age breakdown (for 65+)
+    // B25003: tenure (owner vs renter)
+    // B25039: median year householder moved in (proxy for residence length)
+    const vars = 'B25035_001E,B19013_001E,B01001_001E,B01001_020E,B01001_021E,B01001_022E,B01001_023E,B01001_024E,B01001_025E,B01001_044E,B01001_045E,B01001_046E,B01001_047E,B01001_048E,B01001_049E,B25003_001E,B25003_002E,B25039_001E,NAME';
+    const censusRes = await fetch(
+      `https://api.census.gov/data/2022/acs/acs5?get=${vars}&for=tract:*&in=state:${state}+county:${county}&key=${CENSUS_API_KEY}`
+    );
+    const censusRaw = await censusRes.json();
+    const headers = censusRaw[0];
+
+    // Parse into lookup
+    const censusLookup = {};
+    for (let i = 1; i < censusRaw.length; i++) {
+      const row = censusRaw[i];
+      const get = (v) => parseInt(row[headers.indexOf(v)]) || 0;
+      const tractId = `${state}${county}${row[headers.indexOf('tract')]}`;
+
+      const totalPop = get('B01001_001E');
+      // Males 65+ (groups 020-025) + Females 65+ (groups 044-049)
+      const seniors = get('B01001_020E') + get('B01001_021E') + get('B01001_022E') +
+                      get('B01001_023E') + get('B01001_024E') + get('B01001_025E') +
+                      get('B01001_044E') + get('B01001_045E') + get('B01001_046E') +
+                      get('B01001_047E') + get('B01001_048E') + get('B01001_049E');
+      const seniorPct = totalPop > 0 ? Math.round((seniors / totalPop) * 100) : 0;
+
+      const totalHousing = get('B25003_001E');
+      const ownerOccupied = get('B25003_002E');
+      const ownerPct = totalHousing > 0 ? Math.round((ownerOccupied / totalHousing) * 100) : 0;
+
+      // Year householder moved in — lower year = longer residence
+      const moveInYear = get('B25039_001E');
+      const yearsInHome = moveInYear > 1900 ? 2024 - moveInYear : null;
+
+      censusLookup[tractId] = {
+        yearBuilt: get('B25035_001E') || null,
+        income: get('B19013_001E') || null,
+        seniorPct,
+        ownerPct,
+        yearsInHome,
+        name: row[headers.indexOf('NAME')]
+      };
+    }
+
+    console.log('Census lookup built, tract count:', Object.keys(censusLookup).length);
+    console.log('Sample tract:', Object.entries(censusLookup)[0]);
+    document.getElementById('loading-sub-text').textContent = 'Drawing hot spots...';
+    await drawTractLayers(state, county, censusLookup);
+    document.getElementById('map-loading').style.display = 'none';
+    document.getElementById('legend').classList.add('visible');
+
+  } catch(err) {
+    console.error('Census/map error:', err);
+    document.getElementById('loading-sub-text').textContent = 'Error: ' + err.message;
+    setTimeout(() => { document.getElementById('map-loading').style.display = 'none'; }, 4000);
+  }
+}
+
+// ── Draw layers ───────────────────────────────────────────────────────────────
+async function drawTractLayers(state, county, censusLookup) {
+  // Fetch tract boundaries from TIGER
+  console.log('Fetching TIGER boundaries for state:', state, 'county:', county);
+  const tractUrl = `https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/8/query?where=STATE='${state}'+AND+COUNTY='${county}'&outFields=GEOID,NAME&f=geojson&outSR=4326&resultRecordCount=500`;
+  console.log('TIGER URL:', tractUrl);
+  const tractRes = await fetch(tractUrl);
+  console.log('TIGER response status:', tractRes.status);
+  const tractGeo = await tractRes.json();
+  console.log('TIGER features count:', tractGeo.features?.length, 'error:', tractGeo.error);
+  if (!tractGeo.features?.length) {
+    console.error('TIGER returned no features. Full response:', JSON.stringify(tractGeo).slice(0, 500));
+    throw new Error('No tract boundaries returned: ' + JSON.stringify(tractGeo).slice(0, 200));
+  }
+
+  // Enrich with census data + compute picker score
+  tractFeatures = tractGeo.features.map(f => {
+    const geoid = f.properties.GEOID;
+    const d = censusLookup[geoid] || {};
+
+    const yb = d.yearBuilt;
+    const inc = d.income;
+    const sp = d.seniorPct;
+    const op = d.ownerPct;
+    const yr = d.yearsInHome;
+
+    // Age color
+    let ageColor = '#aaaaaa';
+    let ageScore = 0;
+    if (yb) {
+      if (yb >= 1960 && yb <= 1990) { ageColor = '#1a9e4a'; ageScore = 35; }
+      else if (yb < 1960) { ageColor = '#d4a017'; ageScore = 20; }
+      else if (yb <= 2000) { ageColor = '#7a9e7e'; ageScore = 10; }
+      else { ageColor = '#c0392b'; ageScore = 0; }
+    }
+
+    // Income score
+    let incScore = 0;
+    if (inc >= 100000) incScore = 25;
+    else if (inc >= 75000) incScore = 20;
+    else if (inc >= 50000) incScore = 12;
+    else if (inc >= 30000) incScore = 5;
+
+    // Senior score
+    let senScore = 0;
+    if (sp >= 25) senScore = 20;
+    else if (sp >= 15) senScore = 14;
+    else if (sp >= 10) senScore = 8;
+    else if (sp >= 5) senScore = 4;
+
+    // Owner score
+    let ownScore = 0;
+    if (op >= 80) ownScore = 12;
+    else if (op >= 65) ownScore = 8;
+    else if (op >= 50) ownScore = 4;
+
+    // Residence score
+    let resScore = 0;
+    if (yr >= 20) resScore = 8;
+    else if (yr >= 15) resScore = 5;
+    else if (yr >= 10) resScore = 2;
+
+    const totalScore = ageScore + incScore + senScore + ownScore + resScore;
+
+    return {
+      ...f,
+      properties: {
+        ...f.properties,
+        yearBuilt: yb, income: inc, seniorPct: sp, ownerPct: op, yearsInHome: yr,
+        ageColor, score: totalScore,
+        incomeOpacity: inc ? Math.min((inc / 150000) * 0.5, 0.5) : 0,
+        seniorOpacity: sp ? Math.min((sp / 30) * 0.45, 0.45) : 0,
+        ownerOpacity: op ? Math.min((op / 100) * 0.4, 0.4) : 0,
+        residenceOpacity: yr ? Math.min((yr / 25) * 0.4, 0.4) : 0,
+        tractName: d.name || f.properties.NAME
+      }
+    };
+  });
+
+  const geojson = { type: 'FeatureCollection', features: tractFeatures };
+
+  // Remove old layers/sources
+  ['layer-age','layer-income','layer-seniors','layer-owners','layer-residence','layer-border','layer-score'].forEach(id => {
+    if (map.getLayer(id)) map.removeLayer(id);
+  });
+  if (map.getSource('tracts')) map.removeSource('tracts');
+
+  map.addSource('tracts', { type: 'geojson', data: geojson });
+
+  // Age layer
+  map.addLayer({ id: 'layer-age', type: 'fill', source: 'tracts',
+    paint: { 'fill-color': ['get', 'ageColor'], 'fill-opacity': 0.5 }
+  });
+
+  // Income overlay (gold)
+  map.addLayer({ id: 'layer-income', type: 'fill', source: 'tracts',
+    paint: { 'fill-color': '#c17f24', 'fill-opacity': ['get', 'incomeOpacity'] }
+  });
+
+  // Seniors overlay (blue)
+  map.addLayer({ id: 'layer-seniors', type: 'fill', source: 'tracts',
+    paint: { 'fill-color': '#2980b9', 'fill-opacity': ['get', 'seniorOpacity'] }
+  });
+
+  // Owners overlay (purple)
+  map.addLayer({ id: 'layer-owners', type: 'fill', source: 'tracts',
+    paint: { 'fill-color': '#7d3c98', 'fill-opacity': ['get', 'ownerOpacity'] }
+  });
+
+  // Residence overlay (teal)
+  map.addLayer({ id: 'layer-residence', type: 'fill', source: 'tracts',
+    paint: { 'fill-color': '#17a589', 'fill-opacity': ['get', 'residenceOpacity'] }
+  });
+
+  // Borders
+  map.addLayer({ id: 'layer-border', type: 'line', source: 'tracts',
+    paint: { 'line-color': '#fff', 'line-width': 1, 'line-opacity': 0.7 }
+  });
+
+  applyLayerVisibility();
+}
+
+// ── Layer toggle ──────────────────────────────────────────────────────────────
+function toggleLayer(layer, btn) {
+  if (activeLayers.has(layer)) {
+    if (activeLayers.size === 1) return; // keep at least one active
+    activeLayers.delete(layer);
+    btn.classList.remove('active');
+  } else {
+    activeLayers.add(layer);
+    btn.classList.add('active');
+  }
+  applyLayerVisibility();
+  updateLegend();
+}
+
+function applyLayerVisibility() {
+  if (!map) return;
+  const map_layers = {
+    'layer-age': 'age',
+    'layer-income': 'income',
+    'layer-seniors': 'seniors',
+    'layer-owners': 'owners',
+    'layer-residence': 'residence'
+  };
+  Object.entries(map_layers).forEach(([id, key]) => {
+    if (map.getLayer(id)) {
+      map.setLayoutProperty(id, 'visibility', activeLayers.has(key) ? 'visible' : 'none');
+    }
+  });
+}
+
+function updateLegend() {
+  const active = [...activeLayers];
+  const titles = { age: 'Home Age', income: 'Wealth', seniors: 'Seniors 65+', owners: 'Homeowners', residence: 'Long Residence' };
+  document.getElementById('legend-title').textContent = active.map(a => titles[a]).join(' + ');
+}
+
+// ── Map click ─────────────────────────────────────────────────────────────────
+function onMapClick(e) {
+  if (!map.getSource('tracts')) return;
+  const features = map.queryRenderedFeatures(e.point, { layers: ['layer-age'] });
+  if (!features.length) { closeInfoPanel(); return; }
+
+  const p = features[0].properties;
+  const yb = p.yearBuilt;
+  const inc = p.income;
+  const sp = p.seniorPct;
+  const op = p.ownerPct;
+  const yr = p.yearsInHome;
+  const score = p.score || 0;
+
+  // Age assessment
+  const ageText = yb
+    ? `${yb} avg ${yb >= 1960 && yb <= 1990 ? '✅' : yb > 2000 ? '❌' : '⚠️'}`
+    : 'No data';
+  const ageClass = yb >= 1960 && yb <= 1990 ? 'good' : yb > 2000 ? 'bad' : 'ok';
+
+  // Income assessment
+  const incText = inc
+    ? `$${inc.toLocaleString()}/yr ${inc >= 75000 ? '✅' : inc >= 45000 ? '⚠️' : '❌'}`
+    : 'No data';
+  const incClass = inc >= 75000 ? 'good' : inc >= 45000 ? 'ok' : 'bad';
+
+  // Senior assessment
+  const spText = sp !== undefined && sp !== null
+    ? `${sp}% of residents ${sp >= 20 ? '✅ High' : sp >= 12 ? '⚠️ Moderate' : '❌ Low'}`
+    : 'No data';
+  const spClass = sp >= 20 ? 'good' : sp >= 12 ? 'ok' : 'bad';
+
+  // Owner assessment
+  const opText = op !== undefined && op !== null
+    ? `${op}% owner-occupied ${op >= 70 ? '✅' : op >= 50 ? '⚠️' : '❌'}`
+    : 'No data';
+  const opClass = op >= 70 ? 'good' : op >= 50 ? 'ok' : 'bad';
+
+  // Residence assessment
+  const yrText = yr
+    ? `${yr} yrs avg ${yr >= 18 ? '✅ Long' : yr >= 12 ? '⚠️ Moderate' : '❌ Short'}`
+    : 'No data';
+  const yrClass = yr >= 18 ? 'good' : yr >= 12 ? 'ok' : 'bad';
+
+  // Picker score label
+  let scoreLabel, scoreClass, scoreReason;
+  if (score >= 75) {
+    scoreLabel = '🟢 Excellent Picking Area';
+    scoreClass = 'great';
+    scoreReason = 'Prime era homes, wealthy residents, high senior population, long-term homeowners — ideal conditions for valuable estate sales.';
+  } else if (score >= 55) {
+    scoreLabel = '🟡 Good Picking Area';
+    scoreClass = 'good';
+    scoreReason = 'Several strong picking indicators. Worth targeting on a sale weekend.';
+  } else if (score >= 35) {
+    scoreLabel = '🟠 Fair Picking Area';
+    scoreClass = 'fair';
+    scoreReason = 'Some potential but missing key indicators. May be worth a drive-through.';
+  } else {
+    scoreLabel = '🔴 Low Picking Potential';
+    scoreClass = 'low';
+    scoreReason = 'Area is likely too new or lacks the demographic profile for valuable estate sale finds.';
+  }
+
+  document.getElementById('info-title').textContent = (p.tractName || 'Census Tract').replace(/Census Tract.*?,\s*/i, '');
+  document.getElementById('info-body').innerHTML = `
+    <div class="info-row"><span class="info-icon">🏚️</span><span><span class="info-label">Avg year built:</span><span class="info-val ${ageClass}">${ageText}</span></span></div>
+    <div class="info-row"><span class="info-icon">💰</span><span><span class="info-label">Median income:</span><span class="info-val ${incClass}">${incText}</span></span></div>
+    <div class="info-row"><span class="info-icon">👴</span><span><span class="info-label">Seniors 65+:</span><span class="info-val ${spClass}">${spText}</span></span></div>
+    <div class="info-row"><span class="info-icon">🏠</span><span><span class="info-label">Homeowners:</span><span class="info-val ${opClass}">${opText}</span></span></div>
+    <div class="info-row"><span class="info-icon">📅</span><span><span class="info-label">Avg time in home:</span><span class="info-val ${yrClass}">${yrText}</span></span></div>
+  `;
+
+  const scoreBox = document.getElementById('picker-score-box');
+  scoreBox.className = `picker-score ${scoreClass}`;
+  document.getElementById('picker-score-val').textContent = scoreLabel;
+  document.getElementById('picker-score-val').className = `picker-score-val ${scoreClass}`;
+  document.getElementById('picker-score-reason').textContent = scoreReason;
+
+  document.getElementById('info-panel').classList.add('open');
+}
+
+function closeInfoPanel() {
+  document.getElementById('info-panel').classList.remove('open');
+}
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+window.onload = () => {
+  const defaultLat = 34.0522, defaultLng = -118.2437;
+  initMap(defaultLat, defaultLng);
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        if (map) {
+          map.flyTo({ center: [userLocation.lng, userLocation.lat], zoom: 13 });
+          userMarker = new mapboxgl.Marker({ color: '#2d5233' })
+            .setLngLat([userLocation.lng, userLocation.lat])
+            .addTo(map);
+          loadAllCensusData(userLocation.lat, userLocation.lng);
+        }
+      },
+      () => { document.getElementById('map-loading').style.display = 'none'; }
+    );
+  } else {
+    document.getElementById('map-loading').style.display = 'none';
+  }
+};
+</script>
+</body>
+</html>
